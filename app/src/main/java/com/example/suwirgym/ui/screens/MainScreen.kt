@@ -47,7 +47,9 @@ fun MainScreen(rootNavController: NavController) {
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Graph.route) { GraphScreen() }
             composable(Screen.Notification.route) { NotificationScreen() }
-            composable(Screen.Profile.route) { ProfileScreen() }
+            composable(Screen.Profile.route) {
+                ProfileScreen(navController = navController)
+            }
         }
     }
 }
