@@ -16,14 +16,19 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.suwirgym.utils.Screen
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 @Composable
 fun RegisterScreen(navController: NavController) {
+    var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var birthDate by remember { mutableStateOf("") } // Format: yyyy-MM-dd
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
     val context = LocalContext.current
+    val db = Firebase.firestore
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -42,9 +47,27 @@ fun RegisterScreen(navController: NavController) {
             )
 
             OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                placeholder = { Text("Username") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 placeholder = { Text("Email") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = birthDate,
+                onValueChange = { birthDate = it },
+                placeholder = { Text("Tanggal Lahir (yyyy-MM-dd)") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -77,13 +100,34 @@ fun RegisterScreen(navController: NavController) {
                             .createUserWithEmailAndPassword(email, password)
                             .addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
-                                    Toast.makeText(
-                                        context,
-                                        "Berhasil daftar, silakan login",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    navController.navigate(Screen.Login.route) {
-                                        popUpTo(Screen.Register.route) { inclusive = true }
+                                    val userId = FirebaseAuth.getInstance().currentUser?.uid
+                                    val user = hashMapOf(
+                                        "username" to username,
+                                        "email" to email,
+                                        "birthDate" to birthDate,
+                                        "createdAt" to System.currentTimeMillis()
+                                    )
+
+                                    if (userId != null) {
+                                        db.collection("users").document(userId)
+                                            .set(user)
+                                            .addOnSuccessListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Berhasil daftar, silakan login",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                navController.navigate(Screen.Login.route) {
+                                                    popUpTo(Screen.Register.route) { inclusive = true }
+                                                }
+                                            }
+                                            .addOnFailureListener { e ->
+                                                Toast.makeText(
+                                                    context,
+                                                    "Gagal simpan data: ${e.message}",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
                                     }
                                 } else {
                                     Toast.makeText(
