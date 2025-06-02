@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,6 +24,8 @@ import com.google.firebase.auth.FirebaseAuth
 fun ProfileScreen(navController: NavController) {
     val context = LocalContext.current
 
+    var beratBadan by remember { mutableStateOf("") }
+    var tinggiBadan by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -43,6 +47,31 @@ fun ProfileScreen(navController: NavController) {
         ProfileItem(icon = "📅", title = "TANGGAL LAHIR", subtitle = "Ini umur")
         ProfileItem(icon = "📈", title = "PROGRES", subtitle = "5700cal")
         ProfileItem(icon = "🪪", title = "AKUN DIMILIKI SEJAK", subtitle = "MISAL 27 TAHUN 13 HARI")
+
+        OutlinedTextField(
+            value = beratBadan,
+            onValueChange = { beratBadan = it },
+            label = { Text("Berat Badan (kg)") },
+            leadingIcon = { Text("⚖️") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        // Input Tinggi Badan
+        OutlinedTextField(
+            value = tinggiBadan,
+            onValueChange = { tinggiBadan = it },
+            label = { Text("Tinggi Badan (cm)") },
+            leadingIcon = { Text("📏") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -83,7 +112,7 @@ fun ProfileItem(icon: String, title: String, subtitle: String) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(20.dp)
                     .background(Color(0xFFEEEEEE), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
