@@ -25,7 +25,7 @@ fun ProfileScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFF0F0)) // latar pink muda
+            .background(Color(0xFFFFF0F0))
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -35,7 +35,7 @@ fun ProfileScreen(navController: NavController) {
             fontWeight = FontWeight.Bold,
             color = Color.Red,
             modifier = Modifier
-                .padding(top = 16.dp, bottom = 24.dp)
+                .padding(top = 50.dp, bottom = 24.dp)
         )
 
         // Informasi Pengguna
@@ -72,7 +72,7 @@ fun ProfileItem(icon: String, title: String, subtitle: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 18.dp),
         shape = RoundedCornerShape(24.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)

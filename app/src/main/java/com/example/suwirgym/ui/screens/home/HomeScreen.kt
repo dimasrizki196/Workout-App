@@ -20,14 +20,14 @@ fun HomeScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color(0xFFFFF0F0))
     ) {
         Text(
             text = "HOME",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Red,
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 16.dp)
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top =50.dp)
         )
 
         DayStreak()
@@ -45,8 +45,8 @@ fun DayStreak() {
 
     Row(
         modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .background(Color(0xFFFFEBEE), RoundedCornerShape(24.dp))
+            .padding(horizontal = 16.dp, vertical = 50.dp)
+            .background(Color(0xFF858383), RoundedCornerShape(24.dp))
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -64,16 +64,16 @@ fun DayStreak() {
 fun WorkoutList() {
     val workouts = listOf("PUSH UP", "PULL UP", "SIT UP", "SQUAD")
 
-    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 25.dp)) {
         workouts.forEach {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 18.dp),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(text = "🏃‍♂️", fontSize = 24.sp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {

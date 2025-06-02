@@ -36,7 +36,6 @@ fun MainScreen(rootNavController: NavController) {
     )
 
     Scaffold(
-        topBar = { AppBar(title = "SuwirGym") },
         bottomBar = { BottomBar(navController = navController, items = items) }
     ) { innerPadding ->
         NavHost(

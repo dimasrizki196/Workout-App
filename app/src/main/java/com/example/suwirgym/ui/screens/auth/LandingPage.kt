@@ -22,7 +22,7 @@ fun LandingPage(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "SUWIRGYM",
+                text = "WORKOUTDER",
                 color = Color.Red,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
