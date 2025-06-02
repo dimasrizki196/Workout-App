@@ -105,7 +105,7 @@ fun ProfileScreen(navController: NavController) {
             suffix = "cm"
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Button(
             onClick = {
@@ -134,7 +134,7 @@ fun ProfileScreen(navController: NavController) {
             Text(text = "SIMPAN", color = Color.White, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Button(
             onClick = {
@@ -209,7 +209,7 @@ fun ProfileItemInput(
         ) {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(16.dp)
                     .background(Color(0xFFEEEEEE), CircleShape),
                 contentAlignment = Alignment.Center
             ) {

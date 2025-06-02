@@ -11,8 +11,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -24,43 +26,62 @@ data class WorkoutItem(
 
 @Composable
 fun HomeScreen() {
+    val db = FirebaseFirestore.getInstance()
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
+    val scope = rememberCoroutineScope()
+
     val workouts = listOf(
         WorkoutItem("Push Up", "💪", 0.3f),
         WorkoutItem("Pull Up", "🧗", 1.0f),
         WorkoutItem("Sit Up", "🤸", 0.25f),
-        WorkoutItem("Squat", "🏋️", 0.32f)
+        WorkoutItem("Squat", "🏋", 0.32f)
     )
 
     var repsMap by remember { mutableStateOf(workouts.associate { it.name to "" }.toMutableMap()) }
-
-    val totalCalories = workouts.sumOf {
-        val reps = repsMap[it.name]?.toIntOrNull() ?: 0
-        (reps * it.caloriesPerRep).toDouble()
-    }
-
     var apiCalled by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var apiError by remember { mutableStateOf<String?>(null) }
 
-    val scope = rememberCoroutineScope()
+    val today = LocalDate.now()
+    val formatter = DateTimeFormatter.ISO_DATE
+    val dateStr = today.format(formatter)
 
-    // Kirim otomatis jika semua latihan terisi
-    LaunchedEffect(repsMap) {
-        val allFilled = repsMap.values.all { it.toIntOrNull() != null && it.toInt() > 0 }
-        if (allFilled && !apiCalled) {
-            isLoading = true
-            apiError = null
-            scope.launch {
-                submitWorkoutToFirestore(repsMap, totalCalories) { success, error ->
-                    if (success) {
-                        apiCalled = true
-                    } else {
-                        apiError = "Gagal kirim ke Firestore: $error"
-                    }
-                    isLoading = false
+    // Hari Senin sampai Minggu
+    val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+    val monday = today.with(java.time.DayOfWeek.MONDAY)
+
+    // workoutStatus untuk DayStreak, true kalau hari itu sudah workout
+    var workoutStatus by remember { mutableStateOf(List(7) { false }) }
+
+    // Load status workout 7 hari ini dari Firestore (hanya sekali)
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            val statuses = MutableList(7) { false }
+            for (i in 0..6) {
+                val dateToCheck = monday.plusDays(i.toLong())
+                val doc = db.collection("users")
+                    .document(userId)
+                    .collection("workouts")
+                    .document(dateToCheck.format(formatter))
+                    .get()
+                    .await()
+                if (doc.exists()) {
+                    statuses[i] = true
                 }
             }
+            workoutStatus = statuses
         }
+    }
+
+    // Fungsi update workoutStatus hari ini langsung saat simpan sukses
+    fun markTodayWorkoutDone() {
+        val todayIndex = (today.dayOfWeek.value + 6) % 7 // supaya Senin=0, Minggu=6
+        workoutStatus = workoutStatus.toMutableList().also { it[todayIndex] = true }
+    }
+
+    val totalCalories = workouts.sumOf {
+        val reps = repsMap[it.name]?.toIntOrNull() ?: 0
+        reps * it.caloriesPerRep.toDouble()
     }
 
     Column(
@@ -81,13 +102,12 @@ fun HomeScreen() {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        DayStreak()
+        DayStreak(days = days, workoutStatus = workoutStatus)
 
         Spacer(modifier = Modifier.height(16.dp))
 
         WorkoutList(workouts, repsMap) { name, newReps ->
             repsMap = repsMap.toMutableMap().apply { put(name, newReps) }
-            apiCalled = false
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -100,6 +120,37 @@ fun HomeScreen() {
         )
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = {
+                val allFilled = repsMap.values.all { it.toIntOrNull() != null && it.toInt() > 0 }
+                if (!allFilled) {
+                    apiError = "Lengkapi semua input repetisi dengan angka > 0"
+                    return@Button
+                }
+                if (apiCalled) {
+                    apiError = "Workout hari ini sudah disimpan"
+                    return@Button
+                }
+                isLoading = true
+                apiError = null
+                scope.launch {
+                    submitWorkoutToFirestore(userId, repsMap, totalCalories, dateStr) { success, error ->
+                        if (success) {
+                            apiCalled = true
+                            markTodayWorkoutDone() // langsung update DayStreak UI
+                        } else {
+                            apiError = "Gagal kirim ke Firestore: $error"
+                        }
+                        isLoading = false
+                    }
+                }
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            enabled = !isLoading && !apiCalled
+        ) {
+            Text(text = if (apiCalled) "Sudah Disimpan" else "Simpan Workout")
+        }
 
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -118,13 +169,18 @@ fun HomeScreen() {
 }
 
 fun submitWorkoutToFirestore(
+    userId: String?,
     repsMap: Map<String, String>,
     totalCalories: Double,
+    dateStr: String,
     onComplete: (Boolean, String?) -> Unit
 ) {
+    if (userId == null) {
+        onComplete(false, "User belum login")
+        return
+    }
+
     val db = FirebaseFirestore.getInstance()
-    val today = LocalDate.now()
-    val dateStr = today.format(DateTimeFormatter.ISO_DATE) // e.g., 2025-06-02
 
     val data = hashMapOf(
         "repsMap" to repsMap,
@@ -132,30 +188,22 @@ fun submitWorkoutToFirestore(
         "timestamp" to System.currentTimeMillis()
     )
 
-    db.collection("workouts")
-        .document(dateStr)
-        .set(data)
+    val batch = db.batch()
+
+    val globalRef = db.collection("workouts").document(dateStr)
+    batch.set(globalRef, data)
+
+    val userWorkoutRef = db.collection("users").document(userId)
+        .collection("workouts").document(dateStr)
+    batch.set(userWorkoutRef, data)
+
+    batch.commit()
         .addOnSuccessListener { onComplete(true, null) }
         .addOnFailureListener { e -> onComplete(false, e.localizedMessage) }
 }
 
 @Composable
-fun DayStreak() {
-    val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
-
-    val todayIndex = remember {
-        val today = LocalDate.now()
-        when (today.dayOfWeek) {
-            java.time.DayOfWeek.MONDAY -> 0
-            java.time.DayOfWeek.TUESDAY -> 1
-            java.time.DayOfWeek.WEDNESDAY -> 2
-            java.time.DayOfWeek.THURSDAY -> 3
-            java.time.DayOfWeek.FRIDAY -> 4
-            java.time.DayOfWeek.SATURDAY -> 5
-            java.time.DayOfWeek.SUNDAY -> 6
-        }
-    }
-
+fun DayStreak(days: List<String>, workoutStatus: List<Boolean>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,9 +217,9 @@ fun DayStreak() {
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = if (index <= todayIndex) "🔥" else "⬜",
+                    text = if (workoutStatus.getOrNull(index) == true) "🔥" else "⬜",
                     fontSize = 18.sp,
-                    color = if (index <= todayIndex) Color(0xFFFF9800) else Color.LightGray,
+                    color = if (workoutStatus.getOrNull(index) == true) Color(0xFFFF9800) else Color.LightGray,
                     fontWeight = FontWeight.Bold
                 )
                 Text(text = day, fontSize = 10.sp, color = Color.White)
