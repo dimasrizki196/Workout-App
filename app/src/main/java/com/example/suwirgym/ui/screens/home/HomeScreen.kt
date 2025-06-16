@@ -8,11 +8,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.suwirgym.util.cancelDailyWorkoutReminder
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
@@ -29,6 +32,7 @@ fun HomeScreen() {
     val db = FirebaseFirestore.getInstance()
     val userId = FirebaseAuth.getInstance().currentUser?.uid
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val workouts = listOf(
         WorkoutItem("Push Up", "💪", 0.3f),
@@ -41,19 +45,55 @@ fun HomeScreen() {
     var apiCalled by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var apiError by remember { mutableStateOf<String?>(null) }
+    var workoutStatus by remember { mutableStateOf(List(7) { false }) }
 
     val today = LocalDate.now()
     val formatter = DateTimeFormatter.ISO_DATE
     val dateStr = today.format(formatter)
-
-    // Hari Senin sampai Minggu
-    val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
     val monday = today.with(java.time.DayOfWeek.MONDAY)
+    val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
 
-    // workoutStatus untuk DayStreak, true kalau hari itu sudah workout
-    var workoutStatus by remember { mutableStateOf(List(7) { false }) }
+    var listenerRegistration by remember { mutableStateOf<ListenerRegistration?>(null) }
 
-    // Load status workout 7 hari ini dari Firestore (hanya sekali)
+    // Real-time update repsMap
+    LaunchedEffect(userId, dateStr) {
+        listenerRegistration?.remove()
+        if (userId != null) {
+            val userWorkoutRef = db.collection("users")
+                .document(userId)
+                .collection("workouts")
+                .document(dateStr)
+
+            listenerRegistration = userWorkoutRef.addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    apiError = "Error loading data: ${error.message}"
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val data = snapshot.data
+                    val repsAnyMap = data?.get("repsMap") as? Map<*, *>
+                    val savedRepsMap = repsAnyMap?.mapNotNull {
+                        val key = it.key as? String
+                        val value = it.value as? String
+                        if (key != null && value != null) key to value else null
+                    }?.toMap()?.toMutableMap()
+
+                    if (savedRepsMap != null) {
+                        repsMap = savedRepsMap
+                        apiCalled = true
+                    }
+                }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            listenerRegistration?.remove()
+        }
+    }
+
+    // Load DayStreak workout history
     LaunchedEffect(userId) {
         if (userId != null) {
             val statuses = MutableList(7) { false }
@@ -65,17 +105,14 @@ fun HomeScreen() {
                     .document(dateToCheck.format(formatter))
                     .get()
                     .await()
-                if (doc.exists()) {
-                    statuses[i] = true
-                }
+                if (doc.exists()) statuses[i] = true
             }
             workoutStatus = statuses
         }
     }
 
-    // Fungsi update workoutStatus hari ini langsung saat simpan sukses
     fun markTodayWorkoutDone() {
-        val todayIndex = (today.dayOfWeek.value + 6) % 7 // supaya Senin=0, Minggu=6
+        val todayIndex = (today.dayOfWeek.value + 6) % 7
         workoutStatus = workoutStatus.toMutableList().also { it[todayIndex] = true }
     }
 
@@ -95,9 +132,7 @@ fun HomeScreen() {
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Red,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 32.dp)
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 32.dp)
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -138,7 +173,8 @@ fun HomeScreen() {
                     submitWorkoutToFirestore(userId, repsMap, totalCalories, dateStr) { success, error ->
                         if (success) {
                             apiCalled = true
-                            markTodayWorkoutDone() // langsung update DayStreak UI
+                            cancelDailyWorkoutReminder(context)
+                            markTodayWorkoutDone()
                         } else {
                             apiError = "Gagal kirim ke Firestore: $error"
                         }
@@ -160,9 +196,7 @@ fun HomeScreen() {
             Text(
                 text = errorMsg,
                 color = Color.Red,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .align(Alignment.CenterHorizontally)
+                modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally)
             )
         }
     }
@@ -181,8 +215,7 @@ fun submitWorkoutToFirestore(
     }
 
     val db = FirebaseFirestore.getInstance()
-
-    val data = hashMapOf(
+    val workoutData = hashMapOf(
         "repsMap" to repsMap,
         "totalCalories" to totalCalories,
         "timestamp" to System.currentTimeMillis()
@@ -191,11 +224,20 @@ fun submitWorkoutToFirestore(
     val batch = db.batch()
 
     val globalRef = db.collection("workouts").document(dateStr)
-    batch.set(globalRef, data)
+    batch.set(globalRef, workoutData)
 
     val userWorkoutRef = db.collection("users").document(userId)
         .collection("workouts").document(dateStr)
-    batch.set(userWorkoutRef, data)
+    batch.set(userWorkoutRef, workoutData)
+
+    val notificationRef = db.collection("users").document(userId)
+        .collection("notifications").document()
+    val notificationData = hashMapOf(
+        "title" to "Workout Tersimpan",
+        "message" to "Workout hari ini berhasil disimpan dan kalori dibakar: ${"%.2f".format(totalCalories)} kcal",
+        "timestamp" to System.currentTimeMillis()
+    )
+    batch.set(notificationRef, notificationData)
 
     batch.commit()
         .addOnSuccessListener { onComplete(true, null) }
@@ -244,9 +286,7 @@ fun WorkoutList(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = workout.emoji, fontSize = 30.sp)

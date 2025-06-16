@@ -21,6 +21,7 @@ import com.google.firebase.auth.FirebaseAuth
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -59,29 +60,34 @@ fun LoginScreen(navController: NavController) {
 
             Spacer(Modifier.height(16.dp))
 
-            Button(
-                onClick = {
-                    FirebaseAuth.getInstance()
-                        .signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { task ->
-                            if (task.isSuccessful) {
-                                // Navigasi ke MainScreen (dalam Screen.Main.route)
-                                navController.navigate(Screen.Main.route) {
-                                    popUpTo(Screen.Login.route) { inclusive = true }
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                Button(
+                    onClick = {
+                        isLoading = true
+                        FirebaseAuth.getInstance()
+                            .signInWithEmailAndPassword(email, password)
+                            .addOnCompleteListener { task ->
+                                isLoading = false
+                                if (task.isSuccessful) {
+                                    navController.navigate(Screen.Main.route) {
+                                        popUpTo(Screen.Login.route) { inclusive = true }
+                                    }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Login gagal: ${task.exception?.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "Login gagal: ${task.exception?.message}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
                             }
-                        }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
-            ) {
-                Text("LOGIN", color = Color.White)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                ) {
+                    Text("LOGIN", color = Color.White)
+                }
             }
 
             Spacer(Modifier.height(16.dp))

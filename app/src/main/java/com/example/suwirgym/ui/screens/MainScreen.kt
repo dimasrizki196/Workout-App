@@ -22,11 +22,13 @@ import com.example.suwirgym.ui.screens.home.HomeScreen
 import com.example.suwirgym.ui.screens.notification.NotificationScreen
 import com.example.suwirgym.ui.screens.profile.ProfileScreen
 import com.example.suwirgym.utils.Screen
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(rootNavController: NavController) {
     val navController = rememberNavController()
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
 
     val items = listOf(
         BottomNavItem("Beranda", Icons.Default.Home, Screen.Home),
@@ -45,7 +47,7 @@ fun MainScreen(rootNavController: NavController) {
         ) {
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Graph.route) { GraphScreen() }
-            composable(Screen.Notification.route) { NotificationScreen() }
+            composable(Screen.Notification.route) { NotificationScreen(userId = userId) }
             composable(Screen.Profile.route) {
                 ProfileScreen(navController = navController)
             }

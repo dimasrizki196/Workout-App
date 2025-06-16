@@ -73,6 +73,7 @@ dependencies {
 
     //firestore
     implementation ("com.google.firebase:firebase-firestore-ktx")
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Testing
     testImplementation(libs.junit)
