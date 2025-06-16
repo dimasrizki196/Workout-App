@@ -14,7 +14,6 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.suwirgym.ui.components.AppBar
 import com.example.suwirgym.ui.components.BottomBar
 import com.example.suwirgym.ui.components.BottomNavItem
 import com.example.suwirgym.ui.screens.graph.GraphScreen

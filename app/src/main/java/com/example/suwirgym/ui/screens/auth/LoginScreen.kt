@@ -60,32 +60,39 @@ fun LoginScreen(navController: NavController) {
 
             Spacer(Modifier.height(16.dp))
 
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.padding(vertical = 16.dp))
-            } else {
-                Button(
-                    onClick = {
-                        isLoading = true
-                        FirebaseAuth.getInstance()
-                            .signInWithEmailAndPassword(email, password)
-                            .addOnCompleteListener { task ->
-                                isLoading = false
-                                if (task.isSuccessful) {
-                                    navController.navigate(Screen.Main.route) {
-                                        popUpTo(Screen.Login.route) { inclusive = true }
-                                    }
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Login gagal: ${task.exception?.message}",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+            Button(
+                onClick = {
+                    isLoading = true
+                    FirebaseAuth.getInstance()
+                        .signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            isLoading = false
+                            if (task.isSuccessful) {
+                                navController.navigate(Screen.Main.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
                                 }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Login gagal: ${task.exception?.message}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
-                ) {
+                        }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                enabled = !isLoading
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
                     Text("LOGIN", color = Color.White)
                 }
             }

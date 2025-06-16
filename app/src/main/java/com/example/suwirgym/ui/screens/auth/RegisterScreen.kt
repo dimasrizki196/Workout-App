@@ -1,6 +1,7 @@
 package com.example.suwirgym.ui.screens.auth
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,14 +24,25 @@ import com.google.firebase.ktx.Firebase
 fun RegisterScreen(navController: NavController) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var birthDate by remember { mutableStateOf("") } // Format: yyyy-MM-dd
+    var birthDate by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
+    var isLoading by remember { mutableStateOf(false) }
+    var navigateToLogin by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val db = Firebase.firestore
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    if (navigateToLogin) {
+        LaunchedEffect(Unit) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Register.route) { inclusive = true }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -96,11 +108,12 @@ fun RegisterScreen(navController: NavController) {
             Button(
                 onClick = {
                     if (password == confirmPassword) {
+                        isLoading = true
                         FirebaseAuth.getInstance()
                             .createUserWithEmailAndPassword(email, password)
                             .addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
-                                    val userId = FirebaseAuth.getInstance().currentUser?.uid
+                                    val userId = task.result.user?.uid
                                     val user = hashMapOf(
                                         "username" to username,
                                         "email" to email,
@@ -112,24 +125,28 @@ fun RegisterScreen(navController: NavController) {
                                         db.collection("users").document(userId)
                                             .set(user)
                                             .addOnSuccessListener {
+                                                isLoading = false
                                                 Toast.makeText(
                                                     context,
                                                     "Berhasil daftar, silakan login",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
-                                                navController.navigate(Screen.Login.route) {
-                                                    popUpTo(Screen.Register.route) { inclusive = true }
-                                                }
+                                                navigateToLogin = true
                                             }
                                             .addOnFailureListener { e ->
+                                                isLoading = false
                                                 Toast.makeText(
                                                     context,
                                                     "Gagal simpan data: ${e.message}",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             }
+                                    } else {
+                                        isLoading = false
+                                        Toast.makeText(context, "Gagal mendapatkan UID", Toast.LENGTH_SHORT).show()
                                     }
                                 } else {
+                                    isLoading = false
                                     Toast.makeText(
                                         context,
                                         "Gagal daftar: ${task.exception?.message}",
@@ -142,7 +159,8 @@ fun RegisterScreen(navController: NavController) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                enabled = !isLoading
             ) {
                 Text("DAFTAR", color = Color.White)
             }
@@ -155,5 +173,18 @@ fun RegisterScreen(navController: NavController) {
                 Text("Sudah punya akun? Login di sini")
             }
         }
+
+        // 👇 Loading Indicator di atas konten
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color.White)
+            }
+        }
     }
 }
+

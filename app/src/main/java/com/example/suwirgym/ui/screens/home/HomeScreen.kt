@@ -1,5 +1,9 @@
 package com.example.suwirgym.ui.screens.home
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,10 +16,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.suwirgym.util.cancelDailyWorkoutReminder
+import androidx.core.app.NotificationCompat
+import com.example.suwirgym.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
@@ -29,10 +34,37 @@ data class WorkoutItem(
 
 @Composable
 fun HomeScreen() {
-    val db = FirebaseFirestore.getInstance()
-    val userId = FirebaseAuth.getInstance().currentUser?.uid
     val scope = rememberCoroutineScope()
+    val db = FirebaseFirestore.getInstance()
     val context = LocalContext.current
+
+    var userId by remember { mutableStateOf<String?>(null) }
+    var loadingUser by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        repeat(5) {
+            userId = FirebaseAuth.getInstance().currentUser?.uid
+            if (userId != null) return@repeat
+            delay(500)
+        }
+        loadingUser = false
+    }
+
+    if (loadingUser) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (userId == null) {
+        Text(
+            text = "Anda belum login. Silakan login kembali.",
+            color = Color.Red,
+            modifier = Modifier.padding(16.dp)
+        )
+        return
+    }
 
     val workouts = listOf(
         WorkoutItem("Push Up", "💪", 0.3f),
@@ -45,70 +77,30 @@ fun HomeScreen() {
     var apiCalled by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var apiError by remember { mutableStateOf<String?>(null) }
-    var workoutStatus by remember { mutableStateOf(List(7) { false }) }
 
     val today = LocalDate.now()
     val formatter = DateTimeFormatter.ISO_DATE
     val dateStr = today.format(formatter)
-    val monday = today.with(java.time.DayOfWeek.MONDAY)
+
     val days = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+    val monday = today.with(java.time.DayOfWeek.MONDAY)
+    var workoutStatus by remember { mutableStateOf(List(7) { false }) }
 
-    var listenerRegistration by remember { mutableStateOf<ListenerRegistration?>(null) }
-
-    // Real-time update repsMap
-    LaunchedEffect(userId, dateStr) {
-        listenerRegistration?.remove()
-        if (userId != null) {
-            val userWorkoutRef = db.collection("users")
-                .document(userId)
-                .collection("workouts")
-                .document(dateStr)
-
-            listenerRegistration = userWorkoutRef.addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    apiError = "Error loading data: ${error.message}"
-                    return@addSnapshotListener
-                }
-                if (snapshot != null && snapshot.exists()) {
-                    val data = snapshot.data
-                    val repsAnyMap = data?.get("repsMap") as? Map<*, *>
-                    val savedRepsMap = repsAnyMap?.mapNotNull {
-                        val key = it.key as? String
-                        val value = it.value as? String
-                        if (key != null && value != null) key to value else null
-                    }?.toMap()?.toMutableMap()
-
-                    if (savedRepsMap != null) {
-                        repsMap = savedRepsMap
-                        apiCalled = true
-                    }
-                }
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            listenerRegistration?.remove()
-        }
-    }
-
-    // Load DayStreak workout history
     LaunchedEffect(userId) {
-        if (userId != null) {
-            val statuses = MutableList(7) { false }
-            for (i in 0..6) {
-                val dateToCheck = monday.plusDays(i.toLong())
-                val doc = db.collection("users")
-                    .document(userId)
-                    .collection("workouts")
-                    .document(dateToCheck.format(formatter))
-                    .get()
-                    .await()
-                if (doc.exists()) statuses[i] = true
+        val statuses = MutableList(7) { false }
+        for (i in 0..6) {
+            val dateToCheck = monday.plusDays(i.toLong())
+            val doc = db.collection("users")
+                .document(userId!!)
+                .collection("workouts")
+                .document(dateToCheck.format(formatter))
+                .get()
+                .await()
+            if (doc.exists()) {
+                statuses[i] = true
             }
-            workoutStatus = statuses
         }
+        workoutStatus = statuses
     }
 
     fun markTodayWorkoutDone() {
@@ -132,17 +124,76 @@ fun HomeScreen() {
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Red,
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 32.dp)
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 32.dp)
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        DayStreak(days = days, workoutStatus = workoutStatus)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF858383), RoundedCornerShape(24.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            days.forEachIndexed { index, day ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = if (workoutStatus.getOrNull(index) == true) "🔥" else "⬜",
+                        fontSize = 18.sp,
+                        color = if (workoutStatus.getOrNull(index) == true) Color(0xFFFF9800) else Color.LightGray,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(text = day, fontSize = 10.sp, color = Color.White)
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        WorkoutList(workouts, repsMap) { name, newReps ->
-            repsMap = repsMap.toMutableMap().apply { put(name, newReps) }
+        Column {
+            workouts.forEach { workout ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = workout.emoji, fontSize = 30.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = workout.name, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "${workout.caloriesPerRep} kcal per kali",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        OutlinedTextField(
+                            value = repsMap[workout.name] ?: "",
+                            onValueChange = {
+                                repsMap = repsMap.toMutableMap().apply { put(workout.name, it) }
+                            },
+                            label = { Text("x") },
+                            singleLine = true,
+                            modifier = Modifier.width(80.dp)
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -173,8 +224,19 @@ fun HomeScreen() {
                     submitWorkoutToFirestore(userId, repsMap, totalCalories, dateStr) { success, error ->
                         if (success) {
                             apiCalled = true
-                            cancelDailyWorkoutReminder(context)
                             markTodayWorkoutDone()
+                            sendWorkoutNotification(context)
+                            saveNotificationToFirestore(
+                                userId!!,
+                                title = "Workout Tersimpan",
+                                message = "Workout kamu hari ini berhasil disimpan dan membakar ${"%.2f".format(totalCalories)} kcal!"
+                            )
+
+                            // 👇 Bungkus dalam coroutine, karena updateDayStreak adalah suspend
+                            scope.launch {
+                                updateDayStreak(userId!!, dateStr)
+                            }
+
                         } else {
                             apiError = "Gagal kirim ke Firestore: $error"
                         }
@@ -196,7 +258,9 @@ fun HomeScreen() {
             Text(
                 text = errorMsg,
                 color = Color.Red,
-                modifier = Modifier.padding(top = 8.dp).align(Alignment.CenterHorizontally)
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .align(Alignment.CenterHorizontally)
             )
         }
     }
@@ -215,100 +279,107 @@ fun submitWorkoutToFirestore(
     }
 
     val db = FirebaseFirestore.getInstance()
-    val workoutData = hashMapOf(
-        "repsMap" to repsMap,
-        "totalCalories" to totalCalories,
-        "timestamp" to System.currentTimeMillis()
-    )
-
-    val batch = db.batch()
-
-    val globalRef = db.collection("workouts").document(dateStr)
-    batch.set(globalRef, workoutData)
-
     val userWorkoutRef = db.collection("users").document(userId)
         .collection("workouts").document(dateStr)
-    batch.set(userWorkoutRef, workoutData)
 
-    val notificationRef = db.collection("users").document(userId)
-        .collection("notifications").document()
-    val notificationData = hashMapOf(
-        "title" to "Workout Tersimpan",
-        "message" to "Workout hari ini berhasil disimpan dan kalori dibakar: ${"%.2f".format(totalCalories)} kcal",
+    userWorkoutRef.get().addOnSuccessListener { doc ->
+        val oldReps = doc.get("repsMap") as? Map<String, String> ?: emptyMap()
+        val newReps = repsMap.toMutableMap()
+
+        oldReps.forEach { (key, oldVal) ->
+            val existing = newReps[key]?.toIntOrNull() ?: 0
+            val previous = oldVal.toIntOrNull() ?: 0
+            newReps[key] = (existing + previous).toString()
+        }
+
+        val newData = hashMapOf(
+            "repsMap" to newReps,
+            "totalCalories" to totalCalories,
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        userWorkoutRef.set(newData)
+            .addOnSuccessListener {
+                // 📝 Simpan juga ke riwayat
+                val historyRef = db.collection("users").document(userId)
+                    .collection("history").document(dateStr)
+
+                val summary = hashMapOf(
+                    "date" to dateStr,
+                    "totalCalories" to totalCalories,
+                    "reps" to newReps
+                )
+
+                historyRef.set(summary)
+                onComplete(true, null)
+            }
+            .addOnFailureListener { e -> onComplete(false, e.localizedMessage) }
+
+    }.addOnFailureListener {
+        onComplete(false, it.localizedMessage)
+    }
+}
+
+suspend fun updateDayStreak(userId: String, today: String) {
+    val db = FirebaseFirestore.getInstance()
+    val userRef = db.collection("users").document(userId)
+    val streakField = "dayStreak"
+
+    val userSnapshot = userRef.get().await()
+    val lastWorkoutDate = userSnapshot.getString("lastWorkoutDate")
+
+    val formatter = DateTimeFormatter.ISO_DATE
+    val todayDate = LocalDate.parse(today, formatter)
+    val yesterday = todayDate.minusDays(1)
+
+    val newStreak = if (lastWorkoutDate == yesterday.toString()) {
+        (userSnapshot.getLong(streakField) ?: 0L) + 1
+    } else {
+        1
+    }
+
+    userRef.update(
+        mapOf(
+            streakField to newStreak,
+            "lastWorkoutDate" to today
+        )
+    )
+}
+
+fun sendWorkoutNotification(context: Context) {
+    val channelId = "workout_channel"
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            channelId,
+            "Workout Notifications",
+            NotificationManager.IMPORTANCE_HIGH
+        )
+        manager.createNotificationChannel(channel)
+    }
+
+    val notification = NotificationCompat.Builder(context, channelId)
+        .setSmallIcon(R.drawable.ic_launcher_foreground)
+        .setContentTitle("🔥 Workout Disimpan!")
+        .setContentText("Kerja bagus! Tetap semangat 💪")
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .build()
+
+    manager.notify(1, notification)
+}
+
+fun saveNotificationToFirestore(userId: String, title: String, message: String) {
+    val db = FirebaseFirestore.getInstance()
+    val notifRef = db.collection("users").document(userId)
+        .collection("notifications")
+        .document()
+
+    val data = mapOf(
+        "title" to title,
+        "message" to message,
         "timestamp" to System.currentTimeMillis()
     )
-    batch.set(notificationRef, notificationData)
 
-    batch.commit()
-        .addOnSuccessListener { onComplete(true, null) }
-        .addOnFailureListener { e -> onComplete(false, e.localizedMessage) }
-}
-
-@Composable
-fun DayStreak(days: List<String>, workoutStatus: List<Boolean>) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF858383), RoundedCornerShape(24.dp))
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        days.forEachIndexed { index, day ->
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = if (workoutStatus.getOrNull(index) == true) "🔥" else "⬜",
-                    fontSize = 18.sp,
-                    color = if (workoutStatus.getOrNull(index) == true) Color(0xFFFF9800) else Color.LightGray,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(text = day, fontSize = 10.sp, color = Color.White)
-            }
-        }
-    }
-}
-
-@Composable
-fun WorkoutList(
-    workouts: List<WorkoutItem>,
-    repsMap: Map<String, String>,
-    onRepsChange: (String, String) -> Unit
-) {
-    Column {
-        workouts.forEach { workout ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = workout.emoji, fontSize = 30.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = workout.name, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "${workout.caloriesPerRep} kcal per kali",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    OutlinedTextField(
-                        value = repsMap[workout.name] ?: "",
-                        onValueChange = { onRepsChange(workout.name, it) },
-                        label = { Text("x") },
-                        singleLine = true,
-                        modifier = Modifier.width(80.dp)
-                    )
-                }
-            }
-        }
-    }
+    notifRef.set(data)
 }
