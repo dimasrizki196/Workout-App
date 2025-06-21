@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,11 +145,15 @@ fun HomeScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = if (workoutStatus.getOrNull(index) == true) "🔥" else "⬜",
-                        fontSize = 18.sp,
-                        color = if (workoutStatus.getOrNull(index) == true) Color(0xFFFF9800) else Color.LightGray,
-                        fontWeight = FontWeight.Bold
+                    Image(
+                        painter = painterResource(
+                            id = if (workoutStatus.getOrNull(index) == true)
+                                R.drawable.fire_color
+                            else
+                                R.drawable.fire_gray
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
                     )
                     Text(text = day, fontSize = 10.sp, color = Color.White)
                 }
@@ -209,7 +215,7 @@ fun HomeScreen() {
 
         Button(
             onClick = {
-                val allFilled = repsMap.values.all { it.toIntOrNull() != null && it.toInt() > 0 }
+                val allFilled = repsMap.values.any { it.toIntOrNull() != null && it.toInt() > 0 }
                 if (!allFilled) {
                     apiError = "Lengkapi semua input repetisi dengan angka > 0"
                     return@Button
@@ -229,10 +235,10 @@ fun HomeScreen() {
                             saveNotificationToFirestore(
                                 userId!!,
                                 title = "Workout Tersimpan",
-                                message = "Workout kamu hari ini berhasil disimpan dan membakar ${"%.2f".format(totalCalories)} kcal!"
+                                message = "Workout kamu hari ini berhasil disimpan dan membakar ${"%.2f".format(totalCalories)} kcal!",
+                                workouts = repsMap
                             )
 
-                            // 👇 Bungkus dalam coroutine, karena updateDayStreak adalah suspend
                             scope.launch {
                                 updateDayStreak(userId!!, dateStr)
                             }
@@ -283,7 +289,12 @@ fun submitWorkoutToFirestore(
         .collection("workouts").document(dateStr)
 
     userWorkoutRef.get().addOnSuccessListener { doc ->
-        val oldReps = doc.get("repsMap") as? Map<String, String> ?: emptyMap()
+        val oldReps = (doc.get("repsMap") as? Map<*, *>)
+            ?.mapNotNull { (k, v) ->
+                val key = k as? String
+                val value = v as? String
+                if (key != null && value != null) key to value else null
+            }?.toMap() ?: emptyMap()
         val newReps = repsMap.toMutableMap()
 
         oldReps.forEach { (key, oldVal) ->
@@ -292,25 +303,17 @@ fun submitWorkoutToFirestore(
             newReps[key] = (existing + previous).toString()
         }
 
+        val oldCalories = doc.getDouble("totalCalories") ?: 0.0
+        val updatedCalories = oldCalories + totalCalories
+
         val newData = hashMapOf(
             "repsMap" to newReps,
-            "totalCalories" to totalCalories,
+            "totalCalories" to updatedCalories,
             "timestamp" to System.currentTimeMillis()
         )
 
         userWorkoutRef.set(newData)
             .addOnSuccessListener {
-                // 📝 Simpan juga ke riwayat
-                val historyRef = db.collection("users").document(userId)
-                    .collection("history").document(dateStr)
-
-                val summary = hashMapOf(
-                    "date" to dateStr,
-                    "totalCalories" to totalCalories,
-                    "reps" to newReps
-                )
-
-                historyRef.set(summary)
                 onComplete(true, null)
             }
             .addOnFailureListener { e -> onComplete(false, e.localizedMessage) }
@@ -332,6 +335,8 @@ suspend fun updateDayStreak(userId: String, today: String) {
     val todayDate = LocalDate.parse(today, formatter)
     val yesterday = todayDate.minusDays(1)
 
+    if (lastWorkoutDate == today) return
+
     val newStreak = if (lastWorkoutDate == yesterday.toString()) {
         (userSnapshot.getLong(streakField) ?: 0L) + 1
     } else {
@@ -345,6 +350,7 @@ suspend fun updateDayStreak(userId: String, today: String) {
         )
     )
 }
+
 
 fun sendWorkoutNotification(context: Context) {
     val channelId = "workout_channel"
@@ -360,7 +366,7 @@ fun sendWorkoutNotification(context: Context) {
     }
 
     val notification = NotificationCompat.Builder(context, channelId)
-        .setSmallIcon(R.drawable.ic_launcher_foreground)
+        .setSmallIcon(R.drawable.ic_notification)
         .setContentTitle("🔥 Workout Disimpan!")
         .setContentText("Kerja bagus! Tetap semangat 💪")
         .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -369,7 +375,12 @@ fun sendWorkoutNotification(context: Context) {
     manager.notify(1, notification)
 }
 
-fun saveNotificationToFirestore(userId: String, title: String, message: String) {
+fun saveNotificationToFirestore(
+    userId: String,
+    title: String,
+    message: String,
+    workouts: Map<String, String>
+) {
     val db = FirebaseFirestore.getInstance()
     val notifRef = db.collection("users").document(userId)
         .collection("notifications")
@@ -378,7 +389,8 @@ fun saveNotificationToFirestore(userId: String, title: String, message: String) 
     val data = mapOf(
         "title" to title,
         "message" to message,
-        "timestamp" to System.currentTimeMillis()
+        "timestamp" to System.currentTimeMillis(),
+        "workouts" to workouts // Tambahkan data workout
     )
 
     notifRef.set(data)

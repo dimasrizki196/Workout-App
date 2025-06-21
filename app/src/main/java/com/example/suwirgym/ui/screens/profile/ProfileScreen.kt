@@ -16,7 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.suwirgym.utils.Screen
+import androidx.work.WorkManager
+import com.example.suwirgym.navigation.Screen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -24,7 +25,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun ProfileScreen(navController: NavController) {
+fun ProfileScreen(rootNavController: NavController) {
     val context = LocalContext.current
     val user = FirebaseAuth.getInstance().currentUser
     val db = FirebaseFirestore.getInstance()
@@ -81,7 +82,7 @@ fun ProfileScreen(navController: NavController) {
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Red,
-            modifier = Modifier.padding(top = 50.dp, bottom = 24.dp)
+            modifier = Modifier.padding(top = 50.dp, bottom = 15.dp)
         )
 
         ProfileItem(icon = "👤", title = "USERNAME", subtitle = username)
@@ -134,15 +135,20 @@ fun ProfileScreen(navController: NavController) {
             Text(text = "SIMPAN", color = Color.White, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(5.dp))
 
         Button(
             onClick = {
                 FirebaseAuth.getInstance().signOut()
                 Toast.makeText(context, "Logout berhasil", Toast.LENGTH_SHORT).show()
 
-                navController.navigate(Screen.Login.route) {
-                    popUpTo(Screen.Main.route) { inclusive = true }
+                // Batalkan semua notifikasi yang dijadwalkan
+                WorkManager.getInstance(context).cancelAllWorkByTag("daily_reminder")
+
+                // Navigasi ke Landing dan hapus semua stack
+                rootNavController.navigate(Screen.Landing.route) {
+                    popUpTo(0) { inclusive = true }
+                    launchSingleTop = true
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)),

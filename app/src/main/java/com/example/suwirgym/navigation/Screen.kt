@@ -1,4 +1,4 @@
-package com.example.suwirgym.utils
+package com.example.suwirgym.navigation
 
 sealed class Screen(val route: String) {
     object Landing : Screen("landing")

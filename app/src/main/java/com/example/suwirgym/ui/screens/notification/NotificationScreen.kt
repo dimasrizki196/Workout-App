@@ -1,6 +1,9 @@
 package com.example.suwirgym.ui.screens.notification
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,9 +32,7 @@ fun NotificationScreen(userId: String?) {
                         errorMessage = "Gagal memuat notifikasi: ${error.message}"
                         notifications = emptyList()
                     } else if (snapshot != null) {
-                        notifications = snapshot.documents.mapNotNull {
-                            it.data
-                        }
+                        notifications = snapshot.documents.mapNotNull { it.data }
                         errorMessage = null
                     }
                 }
@@ -41,14 +42,19 @@ fun NotificationScreen(userId: String?) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFFFFF0F0))
             .padding(16.dp)
     ) {
         Text(
-            text = "Riwayat Notifikasi",
-            fontSize = 24.sp,
-            modifier = Modifier.padding(bottom = 16.dp),
-            fontWeight = FontWeight.Bold
+            text = "Riwayat notifikasi",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Red,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(top = 32.dp)
         )
+        Spacer(modifier = Modifier.height(20.dp))
 
         if (errorMessage != null) {
             Text(
@@ -62,33 +68,56 @@ fun NotificationScreen(userId: String?) {
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         } else {
-            notifications.forEach { notif ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(4.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = notif["title"] as? String ?: "Tidak ada judul",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = notif["message"] as? String ?: "")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = timestampToString(notif["timestamp"] as? Long ?: 0L),
-                            fontSize = 10.sp,
-                            color = Color.Gray
-                        )
+            // Pakai scrollable list
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(notifications) { notif ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = notif["title"] as? String ?: "Tidak ada judul",
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = notif["message"] as? String ?: "")
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Menampilkan workout detail jika ada
+                            val workouts = notif["workouts"] as? Map<*, *>
+                            if (!workouts.isNullOrEmpty()) {
+                                Text(
+                                    text = "Workout dilakukan:",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                                workouts.forEach { (key, value) ->
+                                    Text(
+                                        text = "- $key: $value kali",
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                            }
+
+                            Text(
+                                text = timestampToString(notif["timestamp"] as? Long ?: 0L),
+                                fontSize = 10.sp,
+                                color = Color.Gray
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 fun timestampToString(time: Long): String {
     val sdf = java.text.SimpleDateFormat("dd MMM yyyy HH:mm", java.util.Locale.getDefault())

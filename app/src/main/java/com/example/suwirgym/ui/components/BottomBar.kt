@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.example.suwirgym.utils.Screen
+import com.example.suwirgym.navigation.Screen
 
 data class BottomNavItem(
     val title: String,

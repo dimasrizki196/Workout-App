@@ -14,7 +14,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.suwirgym.utils.Screen
+import com.example.suwirgym.navigation.Screen
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable

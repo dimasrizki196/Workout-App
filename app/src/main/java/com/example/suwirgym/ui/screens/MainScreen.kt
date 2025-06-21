@@ -9,7 +9,9 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -20,7 +22,8 @@ import com.example.suwirgym.ui.screens.graph.GraphScreen
 import com.example.suwirgym.ui.screens.home.HomeScreen
 import com.example.suwirgym.ui.screens.notification.NotificationScreen
 import com.example.suwirgym.ui.screens.profile.ProfileScreen
-import com.example.suwirgym.utils.Screen
+import com.example.suwirgym.navigation.Screen
+import com.example.suwirgym.util.scheduleDailyWorkoutReminder
 import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,6 +31,12 @@ import com.google.firebase.auth.FirebaseAuth
 fun MainScreen(rootNavController: NavController) {
     val navController = rememberNavController()
     val userId = FirebaseAuth.getInstance().currentUser?.uid
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        scheduleDailyWorkoutReminder(context)
+    }
+
 
     val items = listOf(
         BottomNavItem("Beranda", Icons.Default.Home, Screen.Home),
@@ -45,11 +54,9 @@ fun MainScreen(rootNavController: NavController) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Graph.route) { GraphScreen() }
+            composable(Screen.Graph.route) { GraphScreen(userId = userId) }
             composable(Screen.Notification.route) { NotificationScreen(userId = userId) }
-            composable(Screen.Profile.route) {
-                ProfileScreen(navController = navController)
-            }
+            composable(Screen.Profile.route) {ProfileScreen(rootNavController = rootNavController)}
         }
     }
 }

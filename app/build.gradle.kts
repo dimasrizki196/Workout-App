@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
 
@@ -49,10 +49,14 @@ android {
 
 dependencies {
     implementation(platform(libs.compose.bom))
+    // Vico Charts
+    implementation("com.patrykandpatrick.vico:core:2.1.3")
+    implementation("com.patrykandpatrick.vico:compose:2.1.3")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
     // Compose UI & Material
     implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3:1.1.2")
+    implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
 
     // Navigation

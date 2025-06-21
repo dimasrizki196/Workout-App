@@ -8,7 +8,6 @@ import com.example.suwirgym.ui.screens.auth.LandingPage
 import com.example.suwirgym.ui.screens.auth.LoginScreen
 import com.example.suwirgym.ui.screens.auth.RegisterScreen
 import com.example.suwirgym.ui.screens.MainScreen
-import com.example.suwirgym.utils.Screen
 
 @Composable
 fun RootNavGraph(navController: NavHostController) {
